@@ -1,0 +1,75 @@
+#!/bin/bash 
+
+error_func () {
+  echo "$1" >> error.out
+  exit 1;
+}
+
+create_groups() {
+
+sudo groupadd -g 999 db2iadm1
+  if [ $? -eq "0" ]; then
+    echo "Added group db2iadm1"
+  else
+    error_func "Error adding db2iadm1 group"
+  fi
+
+sudo groupadd -g 998 db2fadm1
+  if [ $? -eq "0" ]; then
+    echo "Added group db2fadm1"
+  else
+    error_func "Error adding db2fadm1"
+  fi
+
+sudo groupadd -g 997 dasadm1
+  if [ $? -eq "0" ]; then
+    echo "Added group dasadm1"
+  else
+    error_func "Error adding dasadm1"
+  fi
+}
+
+add_users_to_grp() {
+
+sudo useradd -u 59617 -g db2iadm1 -m -d /home/db2inst1 db2inst1
+  if [ $? -eq "0" ]; then
+    echo "Added user db2iadm1"
+  else
+    error_func "Error adding db2iadm1 user"
+  fi
+
+sudo useradd -u 59618 -g db2fadm1 -m -d /home/db2fenc1 db2fenc1
+  if [ $? -eq "0" ]; then
+    echo "Added user db2fadm1"
+  else
+    error_func "Error adding db2fadm1 user"
+  fi
+
+sudo useradd -u 59619 -g dasadm1 -m -d /home/dasusr1 dasusr1
+  if [ $? -eq "0" ]; then
+    echo "Added user dasadm1"
+  else
+    error_func "Error adding dasadm1 user"
+  fi
+
+}
+
+set_passwds() {
+
+for i in 'db2inst1' 'db2fenc1' 'dasusr1';do
+  sudo passwd $i
+    if [ $? -eq "0" ]; then
+      echo "Passwd changed for ${i}"
+    else
+      error_func "Error changing ${i} passwd"
+    fi
+done
+
+}
+
+
+
+## Main
+create_groups
+add_users_to_grp
+set_passwds

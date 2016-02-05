@@ -1,0 +1,246 @@
+#!/bin/bash
+set -x
+#
+# Version 6 01/25/2016 
+# ** Fixed typo with dir paths which causes the script to fail.
+# Introduced new bug, with move_install function, it gets stuck in an infinited loop. 
+#
+# Version 5 01/20/2016 
+# *** Need to be specific about what we are unziping/tar'ing
+# *** Added function for unzip'ing and untar'ing
+#
+# Version 4 12/28/2015 
+# *** Added unzip function 
+# *** Testing failed install func()
+#
+# Version 3 - 12/22/2015
+#
+# TODO:
+# Create archive with installation packages for
+# >> Probes
+# >> OMNIbus 8.1 Core
+# >> Jar Files required by ALU probe
+# >> JDK 1.7.x required by latest version of ALU probe (which connects to AMS 9.4.x)
+# 
+# create response file for silent install for future versions (probes, core omnibus)
+# Copy pam files to correct omnibus names
+# 
+# post configurations
+# 
+# >> Update omni.dat
+# >> run nco_igen
+# >> create object server with previous exported configuration
+# >> Configure on boot /etc/init.d/nco script
+# >> Copy, unpack and remove JDK package in $NCHOME
+# >> Copy ALU require jar files to $OMNIHOME/probes/java/nco_p_alcatel_oad directory and untar and remove tar
+# >> Create $NCHOME/etc/props and all subdirectories 
+# >> cp gateway files for unigates, jdbc, and bidi
+# >> Recreate GFTT automations and tools 
+# >> Copy system-auth to correct file anmes (required for nco_pa* tools) 
+#
+#
+#
+# Add getopts to script to configure what we want. ** Completed
+#
+# Define environment variable locations of packages
+#
+
+PROGNAME=$(basename $0)
+
+package_dir=/var/opt/omnibus_build
+package_probes=${package_dir}/probes
+package_configs=${package_dir}/configs
+package_response_files=${package_dir}/response_files
+
+install_target=/var/opt
+install_man=/var/opt/IBM/tivoli/InstallationManager/eclipse
+install_shared_re=/var/opt/IBM/tivoli/IBMIMShared
+
+usage() {
+  echo "Usage: $0 [-t impactpri|impactsec|colobj|aggobj|itnmpri|itnmsec|webgui]" 1>&2;
+  exit 1;
+}
+
+while getopts ":t:" o; do
+  case "${o}" in
+      t)
+        t=${OPTARG}
+        ;;
+      *)
+        usage
+        ;;
+   esac
+done
+
+shift $((OPTIND-1))
+
+if [ -z "${t}" ]; then
+  usage
+fi
+
+error_func () { 
+  echo "$1" >> error.out 
+  exit 1;
+}
+
+create_group_and_user () {
+
+sudo groupadd ncoadmin 
+
+if [ $? -eq "0" ]; then
+  echo "Group created"
+else
+  error_func "Error Creating Group"
+fi
+
+sudo useradd -G ncoadmin netcool
+
+if [ $? -eq "0" ]; then
+  echo "Added user to group"
+else
+  error_func "Error adding user to Group"
+fi
+
+sudo cp .bashrc_prompt ~netcool/.bashrc
+
+if [ $? -eq "0" ]; then
+  echo ".bashrc copied to netcool"
+else
+  error_func "Error copying .bashrc_prompt file"
+fi
+
+id netcool
+
+}
+
+change_perms () {
+
+sudo chown root:ncoadmin ${install_target}
+
+if [ $? -eq "0" ]; then
+  echo "Dir chowned"
+else
+  error_func "Error chowning dir"
+fi
+
+sudo chmod g+wrx ${install_target}
+
+if [ $? -eq "0" ]; then
+  echo "chmod executed"
+else
+  error_func "Error chmod"
+fi
+
+}
+
+check_for_dir () {
+
+if [ ${t} == "webgui" ]; then 
+  sudo mkdir -p ${package_dir}/${t}/WAS
+    if [ $? -eq "0" ]; then
+      echo "${package_dir}/${t}/WAS package directory created"
+    else
+      error_func "Error Creating ${package_dir}/${t}/WAS package directory"
+    fi
+  sudo mkdir -p ${package_dir}/${t}/Jazz
+    if [ $? -eq "0" ]; then
+      echo "${package_dir}/${t}/Jazz package directory created"
+    else
+      error_func "Error Creating ${package_dir}/${t}/Jazz package directory"
+    fi
+  sudo mkdir -p ${package_dir}/${t}/webgui
+    if [ $? -eq "0" ]; then
+      echo "${package_dir}/${t}/webgui package directory created"
+    else
+      error_func "Error Creating ${package_dir}/${t}/webgui package directory"
+    fi
+elif [ ! -d ${package_dir}/${t} ]; then
+  sudo mkdir -p ${package_dir}/${t}
+    if [ $? -eq "0" ]; then
+      echo "${package_dir}/${t} package directory created"
+    else
+      error_func "Error Creating ${package_dir}/${t} package directory"
+    fi
+else echo "Directory already exists" 
+
+fi
+
+}
+
+move_install () {
+
+for file in `cat install_files`; do 
+  if [ ${t} == "webgui" ]; then
+      sudo cp JAZZ_FOR_SM_1.1.0.3_FOR_LNX.zip ${package_dir}/${t}/Jazz
+      sudo cp OMNIbus-v8.1-WebGUI.linux64.zip ${package_dir}/${t}/webgui
+      sudo cp WAS_V8.5.0.1_FOR_JAZZSM_LINUX_ML.zip ${package_dir}/${t}/WAS
+      echo "WebGUI Files copied"	
+  else 
+    sudo cp ${file} ${package_dir}/${t}
+      if [ $? -eq "0" ]; then
+        echo "Install Copied"
+      else
+        error_func "Error copying ${file} to ${package_dir}/${t}"
+     fi
+  fi
+done
+
+}
+unzip_install () {
+ 
+for file in `cat install_files`; do
+  if [ ${t} == "webgui" ]; then 
+    if [ ${file} == "JAZZ_FOR_SM_1.1.0.3_FOR_LNX.zip" ]; then 
+      unzip -qq ${package_dir}/${t}/Jazz/JAZZ_FOR_SM_1.1.0.3_FOR_LNX.zip  
+    elif [ ${file} == "OMNIbus-v8.1-WebGUI.linux64.zip" ];then 
+      unzip -qq ${package_dir}/${t}/webgui/OMNIbus-v8.1-WebGUI.linux64.zip
+    elif [ ${file} == "WAS_V8.5.0.1_FOR_JAZZSM_LINUX_ML.zip" ];then 
+      unzip -qq ${package_dir}/${t}/WAS/WAS_V8.5.0.1_FOR_JAZZSM_LINUX_ML.zip
+    else 
+      tar -vxf ${package_dir}/${t}/${file} -C ${package_dir}/${t}
+        if [ $? -eq "0" ]; then
+          echo "Install Copied"
+        else
+          error_func "Error copying"
+        fi
+    fi 
+  else 
+       "Echo error checking for ${file}"
+  fi
+done
+
+}
+
+
+chown_perms () {
+
+sudo chown -R netcool:ncoadmin ${install_target}
+
+if [ $? -eq "0" ]; then
+  echo "Chowned installs"
+else
+  error_func "Error chowning installs"
+fi
+
+}
+
+
+delete_failed_install () {
+
+  echo "The Value of \${t} is "${t}" "
+
+}
+
+## Main
+
+
+if [ ${t} == "delete" ]; then
+  delete_failed_install		
+else 
+  create_group_and_user
+  change_perms
+  check_for_dir
+  move_install
+  unzip_install
+  chown_perms
+fi 
