@@ -1,5 +1,7 @@
 #!/bin/bash
 #
+# Goal:
+# create a script which can pre a system for a netcool install. 
 set -x
 # Version 7 03/23/2016 
 #
@@ -43,7 +45,7 @@ set -x
 # >> Create $NCHOME/etc/props and all subdirectories 
 # >> cp gateway files for unigates, jdbc, and bidi
 # >> Recreate GFTT automations and tools 
-# >> Copy system-auth to correct file anmes (required for nco_pa* tools) 
+# >> Copy system-auth to correct file names (required for nco_pa* tools) 
 #
 #
 #
