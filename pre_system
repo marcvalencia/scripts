@@ -1,5 +1,12 @@
 #!/bin/bash
+#
 set -x
+# Version 7 03/23/2016 
+#
+# Switched out the for loop to a while for reading in files in the copy_install_files()
+# Added logic for copying files using an array
+#
+# New error! unexpected 
 #
 # Version 6 01/25/2016 
 # ** Fixed typo with dir paths which causes the script to fail.
@@ -72,18 +79,18 @@ while getopts ":t:" o; do
    esac
 done
 
-shift $((OPTIND-1))
+shift "$((OPTIND-1))"
 
-if [ -z "${t}" ]; then
-  usage
-fi
+#if [ -z ${t} ]; then
+#  usage
+#fi
 
-error_func () { 
+error_func() { 
   echo "$1" >> error.out 
   exit 1;
 }
 
-create_group_and_user () {
+create_group_and_user() {
 
 sudo groupadd ncoadmin 
 
@@ -93,7 +100,7 @@ else
   error_func "Error Creating Group"
 fi
 
-sudo useradd -G ncoadmin netcool
+sudo useradd -m netcool -G ncoadmin
 
 if [ $? -eq "0" ]; then
   echo "Added user to group"
@@ -101,7 +108,7 @@ else
   error_func "Error adding user to Group"
 fi
 
-sudo cp .bashrc_prompt ~netcool/.bashrc
+sudo cp ${PWD}/.bashrc_prompt ~netcool/.bashrc
 
 if [ $? -eq "0" ]; then
   echo ".bashrc copied to netcool"
@@ -113,7 +120,7 @@ id netcool
 
 }
 
-change_perms () {
+change_perms() {
 
 sudo chown root:ncoadmin ${install_target}
 
@@ -133,7 +140,7 @@ fi
 
 }
 
-check_for_dir () {
+check_for_dir() {
 
 if [ ${t} == "webgui" ]; then 
   sudo mkdir -p ${package_dir}/${t}/WAS
@@ -154,93 +161,130 @@ if [ ${t} == "webgui" ]; then
     else
       error_func "Error Creating ${package_dir}/${t}/webgui package directory"
     fi
-elif [ ! -d ${package_dir}/${t} ]; then
+elif [[ ${t} == "impactpri" ]] || [[ ${t} == "impactsec" ]]; then
   sudo mkdir -p ${package_dir}/${t}
     if [ $? -eq "0" ]; then
       echo "${package_dir}/${t} package directory created"
     else
       error_func "Error Creating ${package_dir}/${t} package directory"
     fi
-else echo "Directory already exists" 
-
+elif [ ${t} == "colobj" ] || [ ${t} == "aggobj" ]; then
+  sudo mkdir -p ${package_dir}/${t}
+    if [ $? -eq "0" ]; then
+      echo "${package_dir}/${t} package directory created"
+    else
+      error_func "Error Creating ${package_dir}/${t} package directory"
+    fi
+elif [ ${t} == "itnmpri" ] || [ ${t} == "itnmsec" ]; then
+  sudo mkdir -p ${package_dir}/${t}
+    if [ $? -eq "0" ]; then
+      echo "${package_dir}/${t} package directory created"
+    else
+      error_func "Error Creating ${package_dir}/${t} package directory"
+    fi
+else 
+  echo "Directory already exists" 
 fi
 
 }
 
-move_install () {
+copy_install_files() {
 
-for file in `cat install_files`; do 
-  if [ ${t} == "webgui" ]; then
-      sudo cp JAZZ_FOR_SM_1.1.0.3_FOR_LNX.zip ${package_dir}/${t}/Jazz
-      sudo cp OMNIbus-v8.1-WebGUI.linux64.zip ${package_dir}/${t}/webgui
-      sudo cp WAS_V8.5.0.1_FOR_JAZZSM_LINUX_ML.zip ${package_dir}/${t}/WAS
-      echo "WebGUI Files copied"	
-  else 
-    sudo cp ${file} ${package_dir}/${t}
-      if [ $? -eq "0" ]; then
-        echo "Install Copied"
-      else
-        error_func "Error copying ${file} to ${package_dir}/${t}"
-     fi
-  fi
-done
+FS=$'\n' read -d '' -r -a lines <install_files
+
+if [ ${t} == "webgui" ]; then
+  sudo cp ${lines[11]} ${package_dir}/${t}/Jazz
+    if [ $? -eq "0" ]; then
+      echo "Success: ${lines[11]} has been copied to ${package_dir}/${t}/Jazz"
+    else
+      error_func "Error: Copying ${lines[11]} to ${package_dir}/${t}/Jazz directory"
+    fi
+  sudo cp ${lines[10]} ${package_dir}/${t}/webgui
+    if [ $? -eq "0" ]; then
+      echo "Success: ${lines[10]} has been copied to ${package_dir}/${t}/webgui"
+    else
+      error_func "Error: Copying ${lines[10]} to ${package_dir}/${t}/webgui directory"
+    fi
+  sudo cp ${lines[7]} ${package_dir}/${t}/WAS
+    if [ $? -eq "0" ]; then
+      echo "Success: ${lines[7]} has been copied to ${package_dir}/${t}/WAS"
+    else
+      error_func "Error: Copying ${lines[7]} to ${package_dir}/${t}/WAS directory"
+    fi
+elif [ ${t} == "impactpri" ] || [ ${t} == "impactsec" ]; then
+  sudo cp ${lines[0]} ${package_dir}/${t}
+    if [ $? -eq "0" ]; then
+      echo "Success: ${lines[0]} has been copied to ${package_dir}/${t}"
+    else
+      error_func "Error: Copying ${lines[0]} to ${package_dir}/${t} directory"
+    fi
+elif [ ${t} == "colobj" ] || [ ${t} == "colagg" ]; then
+  sudo cp ${lines[1]} ${package_dir}/${t}
+    if [ $? -eq "0" ]; then
+      echo "Success: ${lines[1]} has been copied to ${package_dir}/${t}"
+    else
+      error_func "Error: Copying ${lines[1]} to ${package_dir}/${t} directory"
+    fi
+elif [ ${t} == "itnmpri" ] || [ ${t} == "itnmsec" ]; then
+  sudo cp ${lines[8]} ${package_dir}/${t}
+    if [ $? -eq "0" ]; then
+      echo "Success: ${lines[8]} has been copied to ${package_dir}/${t}"
+    else
+      error_func "Error: Copying ${lines[8]} to ${package_dir}/${t} directory"
+    fi
+else 
+  echo "Unsupported\n"
+fi
 
 }
-unzip_install () {
- 
-for file in `cat install_files`; do
-  if [ ${t} == "webgui" ]; then 
-    if [ ${file} == "JAZZ_FOR_SM_1.1.0.3_FOR_LNX.zip" ]; then 
-      unzip -qq ${package_dir}/${t}/Jazz/JAZZ_FOR_SM_1.1.0.3_FOR_LNX.zip  
-    elif [ ${file} == "OMNIbus-v8.1-WebGUI.linux64.zip" ];then 
-      unzip -qq ${package_dir}/${t}/webgui/OMNIbus-v8.1-WebGUI.linux64.zip
-    elif [ ${file} == "WAS_V8.5.0.1_FOR_JAZZSM_LINUX_ML.zip" ];then 
-      unzip -qq ${package_dir}/${t}/WAS/WAS_V8.5.0.1_FOR_JAZZSM_LINUX_ML.zip
-    else 
-      tar -vxf ${package_dir}/${t}/${file} -C ${package_dir}/${t}
-        if [ $? -eq "0" ]; then
-          echo "Install Copied"
-        else
-          error_func "Error copying"
-        fi
-    fi 
-  else 
-       "Echo error checking for ${file}"
-  fi
-done
 
-}
-
-
-chown_perms () {
+chown_perms() {
 
 sudo chown -R netcool:ncoadmin ${install_target}
-
-if [ $? -eq "0" ]; then
-  echo "Chowned installs"
-else
-  error_func "Error chowning installs"
-fi
+  if [ $? -eq "0" ]; then
+    echo "Chowned installs"
+  else
+    error_func "Error chowning installs"
+ fi
 
 }
 
 
-delete_failed_install () {
+delete_failed_install() {
 
-  echo "The Value of \${t} is "${t}" "
+sudo userdel -r netcool
+  if [ $? -eq "0" ]; then
+    echo "Deleting the netcool user"
+  else
+    error_func "Error deleting the netcool user"
+  fi
+
+sudo groupdel ncoadmin 
+  if [ $? -eq "0" ]; then
+    echo "Deleting the netcool user"
+  else
+    error_func "Error deleting the netcool user"
+  fi
+
+sudo rm -Rf ${package_dir}
+  if [ $? -eq "0" ]; then
+    echo "Deleting the ${package_dir}"
+  else
+    error_func "Error deleting the ${package_dir}"
+  fi
 
 }
 
 ## Main
 
-
-if [ ${t} == "delete" ]; then
+if [ -z ${t} ]; then
+  usage
+elif [ ${t} == "delete" ]; then
   delete_failed_install		
 else 
   create_group_and_user
   change_perms
   check_for_dir
-  move_install
-  unzip_install
+  copy_install_files
   chown_perms
 fi 
